@@ -12,7 +12,7 @@ import (
 	"log"
 	"os"
 
-	"goauth2.googlecode.com/hg/oauth"
+	"code.google.com/p/goauth2/oauth"
 )
 
 var (

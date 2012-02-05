@@ -40,11 +40,11 @@ package oauth
 // TODO(adg): A means of automatically saving credentials when updated.
 
 import (
-	"http"
-	"json"
-	"os"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/url"
 	"time"
-	"url"
 )
 
 // Config is the configuration of an OAuth consumer.
@@ -67,21 +67,16 @@ func (c *Config) redirectURL() string {
 // Token contains an end-user's tokens.
 // This is the data you must store to persist authentication.
 type Token struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-
-	// TokenExpiry is a unix timestamp in seconds that indicates when the
-	// token will expire. Zero means the token has no (known) expiry time.
-	// (Note: this is not the expires_in field as per the spec,
-	// even though we unmarshal the JSON expires_in value into this field.)
-	TokenExpiry int64 `json:"expires_in"`
+	AccessToken  string
+	RefreshToken string
+	Expiry       time.Time // If zero the token has no (known) expiry time.
 }
 
 func (t *Token) Expired() bool {
-	if t.TokenExpiry == 0 {
+	if t.Expiry.IsZero() {
 		return false
 	}
-	return t.TokenExpiry <= time.Seconds()
+	return t.Expiry.After(time.Now())
 }
 
 // Transport implements http.RoundTripper. When configured with a valid
@@ -121,7 +116,7 @@ func (t *Transport) transport() http.RoundTripper {
 func (c *Config) AuthCodeURL(state string) string {
 	url_, err := url.Parse(c.AuthURL)
 	if err != nil {
-		panic("AuthURL malformed: " + err.String())
+		panic("AuthURL malformed: " + err.Error())
 	}
 	q := url.Values{
 		"response_type": {"code"},
@@ -139,9 +134,9 @@ func (c *Config) AuthCodeURL(state string) string {
 }
 
 // Exchange takes a code and gets access Token from the remote server.
-func (t *Transport) Exchange(code string) (tok *Token, err os.Error) {
+func (t *Transport) Exchange(code string) (tok *Token, err error) {
 	if t.Config == nil {
-		return nil, os.NewError("no Config supplied")
+		return nil, errors.New("no Config supplied")
 	}
 	tok = new(Token)
 	err = t.updateToken(tok, url.Values{
@@ -164,12 +159,12 @@ func (t *Transport) Exchange(code string) (tok *Token, err os.Error) {
 // If the Token cannot be renewed a non-nil os.Error value will be returned.
 // If the Token is invalid callers should expect HTTP-level errors,
 // as indicated by the Response's StatusCode.
-func (t *Transport) RoundTrip(req *http.Request) (*http.Response, os.Error) {
+func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.Config == nil {
-		return nil, os.NewError("no Config supplied")
+		return nil, errors.New("no Config supplied")
 	}
 	if t.Token == nil {
-		return nil, os.NewError("no Token supplied")
+		return nil, errors.New("no Token supplied")
 	}
 
 	// Refresh the Token if it has expired.
@@ -185,11 +180,11 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, os.Error) {
 }
 
 // Refresh renews the Transport's AccessToken using its RefreshToken.
-func (t *Transport) Refresh() os.Error {
+func (t *Transport) Refresh() error {
 	if t.Config == nil {
-		return os.NewError("no Config supplied")
+		return errors.New("no Config supplied")
 	} else if t.Token == nil {
-		return os.NewError("no exisiting Token")
+		return errors.New("no existing Token")
 	}
 
 	return t.updateToken(t.Token, url.Values{
@@ -198,7 +193,7 @@ func (t *Transport) Refresh() os.Error {
 	})
 }
 
-func (t *Transport) updateToken(tok *Token, v url.Values) os.Error {
+func (t *Transport) updateToken(tok *Token, v url.Values) error {
 	v.Set("client_id", t.ClientId)
 	v.Set("client_secret", t.ClientSecret)
 	r, err := (&http.Client{Transport: t.transport()}).PostForm(t.TokenURL, v)
@@ -207,13 +202,22 @@ func (t *Transport) updateToken(tok *Token, v url.Values) os.Error {
 	}
 	defer r.Body.Close()
 	if r.StatusCode != 200 {
-		return os.NewError("invalid response: " + r.Status)
+		return errors.New("invalid response: " + r.Status)
 	}
-	if err = json.NewDecoder(r.Body).Decode(tok); err != nil {
+	var b struct {
+		Access    string        `json:"access_token"`
+		Refresh   string        `json:"refresh_token"`
+		ExpiresIn time.Duration `json:"expires_in"`
+	}
+	if err = json.NewDecoder(r.Body).Decode(&b); err != nil {
 		return err
 	}
-	if tok.TokenExpiry != 0 {
-		tok.TokenExpiry = time.Seconds() + tok.TokenExpiry
+	tok.AccessToken = b.Access
+	tok.RefreshToken = b.Refresh
+	if b.ExpiresIn == 0 {
+		tok.Expiry = time.Unix(0, 0)
+	} else {
+		tok.Expiry = time.Now().Add(b.ExpiresIn * time.Second)
 	}
 	return nil
 }
