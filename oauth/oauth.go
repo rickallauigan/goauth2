@@ -215,7 +215,7 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 	tok.AccessToken = b.Access
 	tok.RefreshToken = b.Refresh
 	if b.ExpiresIn == 0 {
-		tok.Expiry = time.Unix(0, 0)
+		tok.Expiry = time.Time{}
 	} else {
 		tok.Expiry = time.Now().Add(b.ExpiresIn * time.Second)
 	}
