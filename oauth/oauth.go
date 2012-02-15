@@ -76,7 +76,7 @@ func (t *Token) Expired() bool {
 	if t.Expiry.IsZero() {
 		return false
 	}
-	return t.Expiry.After(time.Now())
+	return t.Expiry.Before(time.Now())
 }
 
 // Transport implements http.RoundTripper. When configured with a valid
