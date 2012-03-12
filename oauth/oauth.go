@@ -37,15 +37,47 @@
 //
 package oauth
 
-// TODO(adg): A means of automatically saving credentials when updated.
-
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 )
+
+// Cache specifies the methods that implement a Token cache.
+type Cache interface {
+	Token() (*Token, error)
+	PutToken(*Token) error
+}
+
+// CacheFile implements Cache. Its value is the name of the file in which
+// the Token is stored in JSON format.
+type CacheFile string
+
+func (f CacheFile) Token() (*Token, error) {
+	file, err := os.Open(string(f))
+	if err != nil {
+		return nil, fmt.Errorf("CacheFile: %v", err)
+	}
+	tok := &Token{}
+	dec := json.NewDecoder(file)
+	if err = dec.Decode(tok); err != nil {
+		return nil, fmt.Errorf("CacheFile: %v", err)
+	}
+	return tok, nil
+}
+
+func (f CacheFile) PutToken(tok *Token) error {
+	file, err := os.Create(string(f))
+	if err != nil {
+		return fmt.Errorf("CacheFile: %v", err)
+	}
+	enc := json.NewEncoder(file)
+	return enc.Encode(tok)
+}
 
 // Config is the configuration of an OAuth consumer.
 type Config struct {
@@ -55,6 +87,7 @@ type Config struct {
 	AuthURL      string
 	TokenURL     string
 	RedirectURL  string // Defaults to out-of-band mode if empty.
+	TokenCache   Cache
 }
 
 func (c *Config) redirectURL() string {
@@ -134,21 +167,25 @@ func (c *Config) AuthCodeURL(state string) string {
 }
 
 // Exchange takes a code and gets access Token from the remote server.
-func (t *Transport) Exchange(code string) (tok *Token, err error) {
+func (t *Transport) Exchange(code string) (*Token, error) {
 	if t.Config == nil {
 		return nil, errors.New("no Config supplied")
 	}
-	tok = new(Token)
-	err = t.updateToken(tok, url.Values{
+	tok := new(Token)
+	err := t.updateToken(tok, url.Values{
 		"grant_type":   {"authorization_code"},
 		"redirect_uri": {t.redirectURL()},
 		"scope":        {t.Scope},
 		"code":         {code},
 	})
-	if err == nil {
-		t.Token = tok
+	if err != nil {
+		return nil, err
 	}
-	return
+	t.Token = tok
+	if t.TokenCache != nil {
+		return tok, t.TokenCache.PutToken(tok)
+	}
+	return tok, nil
 }
 
 // RoundTrip executes a single HTTP transaction using the Transport's
@@ -164,7 +201,14 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, errors.New("no Config supplied")
 	}
 	if t.Token == nil {
-		return nil, errors.New("no Token supplied")
+		if t.TokenCache == nil {
+			return nil, errors.New("no Token supplied")
+		}
+		var err error
+		t.Token, err = t.TokenCache.Token()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Refresh the Token if it has expired.
@@ -187,10 +231,17 @@ func (t *Transport) Refresh() error {
 		return errors.New("no existing Token")
 	}
 
-	return t.updateToken(t.Token, url.Values{
+	err := t.updateToken(t.Token, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {t.RefreshToken},
 	})
+	if err != nil {
+		return err
+	}
+	if t.TokenCache != nil {
+		return t.TokenCache.PutToken(t.Token)
+	}
+	return nil
 }
 
 func (t *Transport) updateToken(tok *Token, v url.Values) error {
