@@ -88,6 +88,7 @@ type Config struct {
 	TokenURL     string
 	RedirectURL  string // Defaults to out-of-band mode if empty.
 	TokenCache   Cache
+	AccessType   string // Optional.
 }
 
 func (c *Config) redirectURL() string {
@@ -157,6 +158,7 @@ func (c *Config) AuthCodeURL(state string) string {
 		"redirect_uri":  {c.redirectURL()},
 		"scope":         {c.Scope},
 		"state":         {state},
+		"access_type":   {c.AccessType},
 	}.Encode()
 	if url_.RawQuery == "" {
 		url_.RawQuery = q
