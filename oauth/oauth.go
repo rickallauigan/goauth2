@@ -255,7 +255,7 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 	}
 	defer r.Body.Close()
 	if r.StatusCode != 200 {
-		return errors.New("invalid response: " + r.Status)
+		return errors.New("invalid response while updating token: " + r.Status)
 	}
 	var b struct {
 		Access    string        `json:"access_token"`
