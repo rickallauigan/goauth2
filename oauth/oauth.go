@@ -39,13 +39,20 @@ package oauth
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
 )
+
+type OAuthError struct {
+	prefix string
+	msg    string
+}
+
+func (oe OAuthError) Error() string {
+	return "OAuthError: " + oe.prefix + ": " + oe.msg
+}
 
 // Cache specifies the methods that implement a Token cache.
 type Cache interface {
@@ -60,12 +67,12 @@ type CacheFile string
 func (f CacheFile) Token() (*Token, error) {
 	file, err := os.Open(string(f))
 	if err != nil {
-		return nil, fmt.Errorf("CacheFile: %v", err)
+		return nil, OAuthError{"CacheFile.Token", err.Error()}
 	}
 	tok := &Token{}
 	dec := json.NewDecoder(file)
 	if err = dec.Decode(tok); err != nil {
-		return nil, fmt.Errorf("CacheFile: %v", err)
+		return nil, OAuthError{"CacheFile.Token", err.Error()}
 	}
 	return tok, nil
 }
@@ -73,7 +80,7 @@ func (f CacheFile) Token() (*Token, error) {
 func (f CacheFile) PutToken(tok *Token) error {
 	file, err := os.Create(string(f))
 	if err != nil {
-		return fmt.Errorf("CacheFile: %v", err)
+		return OAuthError{"CacheFile.PutToken", err.Error()}
 	}
 	enc := json.NewEncoder(file)
 	return enc.Encode(tok)
@@ -171,7 +178,7 @@ func (c *Config) AuthCodeURL(state string) string {
 // Exchange takes a code and gets access Token from the remote server.
 func (t *Transport) Exchange(code string) (*Token, error) {
 	if t.Config == nil {
-		return nil, errors.New("no Config supplied")
+		return nil, OAuthError{"Exchange", "no Config supplied"}
 	}
 	tok := new(Token)
 	err := t.updateToken(tok, url.Values{
@@ -200,11 +207,11 @@ func (t *Transport) Exchange(code string) (*Token, error) {
 // as indicated by the Response's StatusCode.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.Config == nil {
-		return nil, errors.New("no Config supplied")
+		return nil, OAuthError{"RoundTrip", "no Config supplied"}
 	}
 	if t.Token == nil {
 		if t.TokenCache == nil {
-			return nil, errors.New("no Token supplied")
+			return nil, OAuthError{"RoundTrip", "no Token supplied"}
 		}
 		var err error
 		t.Token, err = t.TokenCache.Token()
@@ -228,9 +235,9 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 // Refresh renews the Transport's AccessToken using its RefreshToken.
 func (t *Transport) Refresh() error {
 	if t.Config == nil {
-		return errors.New("no Config supplied")
+		return OAuthError{"Refresh", "no Config supplied"}
 	} else if t.Token == nil {
-		return errors.New("no existing Token")
+		return OAuthError{"Refresh", "no existing Token"}
 	}
 
 	err := t.updateToken(t.Token, url.Values{
@@ -255,7 +262,7 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 	}
 	defer r.Body.Close()
 	if r.StatusCode != 200 {
-		return errors.New("invalid response while updating token: " + r.Status)
+		return OAuthError{"updateToken", r.Status}
 	}
 	var b struct {
 		Access    string        `json:"access_token"`
