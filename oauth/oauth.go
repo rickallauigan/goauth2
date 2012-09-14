@@ -95,7 +95,16 @@ type Config struct {
 	TokenURL     string
 	RedirectURL  string // Defaults to out-of-band mode if empty.
 	TokenCache   Cache
-	AccessType   string // Optional.
+	AccessType   string // Optional, "online" (default) or "offline", no refresh token if "online"
+
+	// ApprovalPrompt indicates whether the user should be
+	// re-prompted for consent. If set to "auto" (default) the
+	// user will be prompted only if they haven't previously
+	// granted consent and the code can only be exchanged for an
+	// access token.
+	// If set to "force" the user will always be prompted, and the
+	// code can be exchanged for a refresh token.
+	ApprovalPrompt string
 }
 
 func (c *Config) redirectURL() string {
@@ -160,12 +169,13 @@ func (c *Config) AuthCodeURL(state string) string {
 		panic("AuthURL malformed: " + err.Error())
 	}
 	q := url.Values{
-		"response_type": {"code"},
-		"client_id":     {c.ClientId},
-		"redirect_uri":  {c.redirectURL()},
-		"scope":         {c.Scope},
-		"state":         {state},
-		"access_type":   {c.AccessType},
+		"response_type":   {"code"},
+		"client_id":       {c.ClientId},
+		"redirect_uri":    {c.redirectURL()},
+		"scope":           {c.Scope},
+		"state":           {state},
+		"access_type":     {c.AccessType},
+		"approval_prompt": {c.ApprovalPrompt},
 	}.Encode()
 	if url_.RawQuery == "" {
 		url_.RawQuery = q
@@ -180,7 +190,18 @@ func (t *Transport) Exchange(code string) (*Token, error) {
 	if t.Config == nil {
 		return nil, OAuthError{"Exchange", "no Config supplied"}
 	}
-	tok := new(Token)
+
+	// If the transport or the cache already has a token, it is
+	// passed to `updateToken ` to preserve existing refresh token.
+	tok := t.Token
+	if t.Token == nil {
+		if t.TokenCache != nil {
+			tok, _ = t.TokenCache.Token()
+		}
+	}
+	if tok == nil {
+		tok := new(Token)
+	}
 	err := t.updateToken(tok, url.Values{
 		"grant_type":   {"authorization_code"},
 		"redirect_uri": {t.redirectURL()},
@@ -273,7 +294,10 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 		return err
 	}
 	tok.AccessToken = b.Access
-	tok.RefreshToken = b.Refresh
+	// Don't overwrite `RefreshToken` with an empty value
+	if len(b.Refresh) > 0 {
+		tok.RefreshToken = b.Refresh
+	}
 	if b.ExpiresIn == 0 {
 		tok.Expiry = time.Time{}
 	} else {
