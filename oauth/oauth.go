@@ -200,7 +200,7 @@ func (t *Transport) Exchange(code string) (*Token, error) {
 		}
 	}
 	if tok == nil {
-		tok := new(Token)
+		tok = new(Token)
 	}
 	err := t.updateToken(tok, url.Values{
 		"grant_type":   {"authorization_code"},
