@@ -39,6 +39,8 @@ package oauth
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -249,7 +251,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	// Make the HTTP request.
-	req.Header.Set("Authorization", "OAuth "+t.AccessToken)
+	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
 	return t.transport().RoundTrip(req)
 }
 
@@ -290,8 +292,26 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 		Refresh   string        `json:"refresh_token"`
 		ExpiresIn time.Duration `json:"expires_in"`
 	}
-	if err = json.NewDecoder(r.Body).Decode(&b); err != nil {
-		return err
+
+	content, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	switch content {
+	case "application/x-www-form-urlencoded", "text/plain":
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return err
+		}
+		vals, err := url.ParseQuery(string(body))
+		if err != nil {
+			return err
+		}
+
+		b.Access = vals.Get("access_token")
+		b.Refresh = vals.Get("refresh_token")
+		b.ExpiresIn, _ = time.ParseDuration(vals.Get("expires") + "s")
+	default:
+		if err = json.NewDecoder(r.Body).Decode(&b); err != nil {
+			return err
+		}
 	}
 	tok.AccessToken = b.Access
 	// Don't overwrite `RefreshToken` with an empty value
