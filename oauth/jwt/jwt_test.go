@@ -8,7 +8,13 @@ package jwt
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -88,11 +94,12 @@ cDwcJLfNRCPUhormsY7fDS9xSyThiHsW9mjJYdcaKQkwYZ0F11yB
 var (
 	privateKeyPemBytes = []byte(privateKeyPem)
 	publicKeyPemBytes  = []byte(publicKeyPem)
+	stdHeader          = &Header{Algorithm: stdAlgorithm, Type: stdType}
 )
 
 // Testing the urlEncode function.
 func TestUrlEncode(t *testing.T) {
-	enc := urlEncode([]byte(stdHeaderStr))
+	enc := base64Encode([]byte(stdHeaderStr))
 	b := []byte(enc)
 	if b[len(b)-1] == 61 {
 		t.Error("TestUrlEncode: last chat == \"=\"")
@@ -174,8 +181,9 @@ func TestParsePrivateKey(t *testing.T) {
 // Test that the token signature generated matches the golden standard.
 func TestTokenSign(t *testing.T) {
 	tok := &Token{
-		Key:   privateKeyPemBytes,
-		claim: claimSetEnc,
+		Key:    privateKeyPemBytes,
+		claim:  claimSetEnc,
+		header: headerEnc,
 	}
 	err := tok.parsePrivateKey()
 	if err != nil {
@@ -220,6 +228,7 @@ func TestTokenEncode(t *testing.T) {
 	}
 	tok := &Token{
 		ClaimSet: c,
+		Header:   stdHeader,
 		Key:      privateKeyPemBytes,
 	}
 	enc, err := tok.encode()
@@ -243,6 +252,7 @@ func TestBuildRequest(t *testing.T) {
 	}
 	tok := &Token{
 		ClaimSet: c,
+		Header:   stdHeader,
 		Key:      privateKeyPemBytes,
 	}
 	u, v, err := tok.buildRequest()
@@ -293,6 +303,54 @@ func TestHandleResponse(t *testing.T) {
 	}
 	if o.Expired() {
 		t.Error("TestHandleResponse: o.Expired == true")
+	}
+}
+
+// passthrough signature for test
+type FakeSigner struct{}
+
+func (f FakeSigner) Sign(tok *Token) ([]byte, []byte, error) {
+	block, _ := pem.Decode(privateKeyPemBytes)
+	pKey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
+	ss := headerEnc + "." + claimSetEnc
+	h := sha256.New()
+	h.Write([]byte(ss))
+	b, _ := rsa.SignPKCS1v15(rand.Reader, pKey, crypto.SHA256, h.Sum(nil))
+	return []byte(ss), b, nil
+}
+
+// Given an external signer, get back a valid and signed JWT
+func TestExternalSigner(t *testing.T) {
+	tok := NewSignerToken(iss, scope, FakeSigner{})
+	enc, _ := tok.encode()
+	if enc != tokEnc {
+		t.Errorf("TestExternalSigner: enc != tokEnc")
+		t.Errorf("     enc = %s", enc)
+		t.Errorf("  tokEnc = %s", tokEnc)
+	}
+}
+
+func TestHandleResponseWithNewExpiry(t *testing.T) {
+	rb := &respBody{
+		IdToken: tokEnc,
+	}
+	b, err := json.Marshal(rb)
+	if err != nil {
+		t.Errorf("TestHandleResponse:json.Marshal: %v", err)
+	}
+	r := &http.Response{
+		Status:     "200 OK",
+		StatusCode: 200,
+		Body:       ioutil.NopCloser(bytes.NewReader(b)),
+	}
+	o, err := handleResponse(r)
+	if err != nil {
+		t.Errorf("TestHandleResponse:handleResponse: %v", err)
+	}
+	if o.Expiry != time.Unix(exp, 0) {
+		t.Error("TestHandleResponse: o.Expiry != exp")
+		t.Errorf("  o.Expiry = %s", o.Expiry)
+		t.Errorf("       exp = %s", time.Unix(exp, 0))
 	}
 }
 
