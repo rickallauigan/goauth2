@@ -19,97 +19,78 @@ import (
 var (
 	clientId     = flag.String("id", "", "Client ID")
 	clientSecret = flag.String("secret", "", "Client Secret")
-	authURL      = flag.String("auth", "https://accounts.google.com/o/oauth2/auth", "Authorization URL")
-	tokenURL     = flag.String("token", "https://accounts.google.com/o/oauth2/token", "Token URL")
 	apiURL       = flag.String("api", "https://www.googleapis.com/auth/userinfo.profile", "API URL")
-	redirectURL  = flag.String("redirect", "http://localhost/", "Redirect URL")
-	apiRequest   = flag.String("req", "https://www.googleapis.com/oauth2/v1/userinfo", "API request")
+	requestURL   = flag.String("request", "https://www.googleapis.com/oauth2/v1/userinfo", "API request")
 	code         = flag.String("code", "", "Authorization Code")
-	cachefile    = flag.String("cachefile", "request.token", "Token cache file")
-	authparam    = flag.String("ap", "", "Authorization parameter")
-	cache        = flag.Bool("cache", false, "Read token from cache")
-
-	tokenCache oauth.CacheFile
+	cachefile    = flag.String("cache", "cache.json", "Token cache file")
 )
 
 const usageMsg = `
-You must either specify both -id and -secret, or -cache to use saved tokens
+To obtain a request token you must specify both -id and -secret.
 
-To obtain client id and secret, see the "OAuth 2 Credentials" section under
+To obtain Client ID and Secret, see the "OAuth 2 Credentials" section under
 the "API Access" tab on this page: https://code.google.com/apis/console/
 
-After you receive a valid code, specify it using -code; then subsequent calls only need -cache
+Once you have completed the OAuth flow, the credentials should be stored inside
+the file specified by -cache and you may run without the -id and -secret flags.
 `
 
 func main() {
 	flag.Parse()
-	if (*clientId == "" || *clientSecret == "") && !*cache {
-		flag.Usage()
-		fmt.Fprint(os.Stderr, usageMsg)
-		return
-	}
-	// Set up a configuration
+
+	// Set up a configuration.
 	config := &oauth.Config{
 		ClientId:     *clientId,
 		ClientSecret: *clientSecret,
 		Scope:        *apiURL,
-		AuthURL:      *authURL,
-		TokenURL:     *tokenURL,
-		RedirectURL:  *redirectURL,
+		AuthURL:      "https://accounts.google.com/o/oauth2/auth",
+		TokenURL:     "https://accounts.google.com/o/oauth2/token",
+		TokenCache:   oauth.CacheFile(*cachefile),
 	}
 
-	// Step one, get an authorization code from the data provider.
-	// ("Please ask the user if I can access this resource.")
-	if *code == "" && !*cache {
-		url := config.AuthCodeURL("")
-		fmt.Println("Visit this URL to get a code, then run again with -code=YOUR_CODE\n")
-		fmt.Println(url)
-		return
-	}
+	// Set up a Transport using the config.
+	transport := &oauth.Transport{Config: config}
 
-	// Set up a Transport with our config, define the cache
-	t := &oauth.Transport{Config: config}
-	tokenCache = oauth.CacheFile(*cachefile)
-
-	// Step two, exchange the authorization code for an access token.
-	// Cache the token for later use
-	// ("Here's the code you gave the user, now give me a token!")
-	if !*cache {
-		tok, err := t.Exchange(*code)
+	// Try to pull the token from the cache; if this fails, we need to get one.
+	token, err := config.TokenCache.Token()
+	if err != nil {
+		if *clientId == "" || *clientSecret == "" {
+			flag.Usage()
+			fmt.Fprint(os.Stderr, usageMsg)
+			os.Exit(2)
+		}
+		if *code == "" {
+			// Get an authorization code from the data provider.
+			// ("Please ask the user if I can access this resource.")
+			url := config.AuthCodeURL("")
+			fmt.Println("Visit this URL to get a code, then run again with -code=YOUR_CODE\n")
+			fmt.Println(url)
+			return
+		}
+		// Exchange the authorization code for an access token.
+		// ("Here's the code you gave the user, now give me a token!")
+		token, err = transport.Exchange(*code)
 		if err != nil {
 			log.Fatal("Exchange:", err)
 		}
-		err = tokenCache.PutToken(tok)
-		if err != nil {
-			log.Fatal("Cache write:", err)
-		}
-		fmt.Printf("Token is cached in %v\n", tokenCache)
-		return
-		// We needn't return here; we could just use the Transport
-		// to make authenticated requests straight away.
-		// The process has been split up to demonstrate how one might
-		// restore Credentials that have been previously stored.
-	} else {
-		// Step three, make the actual request using the cached token to authenticate.
-		// ("Here's the token, let me in!")
-		ctoken, err := tokenCache.Token()
-		if err != nil {
-			log.Fatal("Cache read:", err)
-		}
-		t.Token = &oauth.Token{AccessToken: ctoken.AccessToken}
-		// Tack on the extra parameters, if specified.
-		if *authparam != "" {
-			*apiRequest += *authparam + ctoken.AccessToken
-		}
+		// (The Exchange method will automatically cache the token.)
+		fmt.Printf("Token is cached in %v\n", config.TokenCache)
 	}
 
+	// Make the actual request using the cached token to authenticate.
+	// ("Here's the token, let me in!")
+	transport.Token = token
+
 	// Make the request.
-	r, err := t.Client().Get(*apiRequest)
+	r, err := transport.Client().Get(*requestURL)
 	if err != nil {
-		log.Fatal("Request:", err)
+		log.Fatal("Get:", err)
 	}
 	defer r.Body.Close()
+
 	// Write the response to standard output.
 	io.Copy(os.Stdout, r.Body)
+
+	// Send final carriage return, just to be neat.
 	fmt.Println()
 }
