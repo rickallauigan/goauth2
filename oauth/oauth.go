@@ -194,7 +194,7 @@ func (t *Transport) Exchange(code string) (*Token, error) {
 	}
 
 	// If the transport or the cache already has a token, it is
-	// passed to `updateToken ` to preserve existing refresh token.
+	// passed to `updateToken` to preserve existing refresh token.
 	tok := t.Token
 	if tok == nil && t.TokenCache != nil {
 		tok, _ = t.TokenCache.Token()
