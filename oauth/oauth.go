@@ -305,11 +305,14 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 
 		b.Access = vals.Get("access_token")
 		b.Refresh = vals.Get("refresh_token")
-		b.ExpiresIn, _ = time.ParseDuration(vals.Get("expires") + "s")
+		b.ExpiresIn, _ = time.ParseDuration(vals.Get("expires_in") + "s")
 	default:
 		if err = json.NewDecoder(r.Body).Decode(&b); err != nil {
 			return err
 		}
+		// The JSON parser treats the unitless ExpiresIn like 'ns' instead of 's' as above,
+		// so compensate here.
+		b.ExpiresIn *= time.Second
 	}
 	tok.AccessToken = b.Access
 	// Don't overwrite `RefreshToken` with an empty value
@@ -319,7 +322,7 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 	if b.ExpiresIn == 0 {
 		tok.Expiry = time.Time{}
 	} else {
-		tok.Expiry = time.Now().Add(b.ExpiresIn * time.Second)
+		tok.Expiry = time.Now().Add(b.ExpiresIn)
 	}
 	return nil
 }

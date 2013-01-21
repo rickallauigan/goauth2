@@ -46,7 +46,7 @@ var requests = []struct {
 	{path: "/secure", auth: "Bearer token2", body: "second payload"},
 	{
 		path:        "/token",
-		query:       "grant_type=refresh_token&refresh_token=refreshtoken3&client_id=cl13nt1d",
+		query:       "grant_type=refresh_token&refresh_token=refreshtoken2&client_id=cl13nt1d",
 		contenttype: "application/x-www-form-urlencoded",
 		body:        "access_token=token3&refresh_token=refreshtoken3&expires_in=3600",
 	},
@@ -117,6 +117,15 @@ func TestOAuth(t *testing.T) {
 	}
 	checkBody(t, resp, "second payload")
 	checkToken(t, transport.Token, "token2", "refreshtoken2")
+
+	// refresh one more time, but get URL-encoded token instead of JSON
+	transport.Expiry = time.Now()
+	resp, err = c.Get(server.URL + "/secure")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	checkBody(t, resp, "third payload")
+	checkToken(t, transport.Token, "token3", "refreshtoken3")
 }
 
 func checkToken(t *testing.T, tok *Token, access, refresh string) {
