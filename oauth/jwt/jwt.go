@@ -94,12 +94,17 @@ func base64Decode(s string) ([]byte, error) {
 //
 // Aud is usually https://accounts.google.com/o/oauth2/token
 type ClaimSet struct {
-	Iss   string `json:"iss"`           // email address of the client_id of the application making the access token request
-	Scope string `json:"scope"`         // space-delimited list of the permissions the application requests
-	Aud   string `json:"aud"`           // descriptor of the intended target of the assertion (Optional).
-	Prn   string `json:"prn,omitempty"` // email for which the application is requesting delegated access (Optional).
+	Iss   string `json:"iss"`             // email address of the client_id of the application making the access token request
+	Scope string `json:"scope,omitempty"` // space-delimited list of the permissions the application requests
+	Aud   string `json:"aud"`             // descriptor of the intended target of the assertion (Optional).
+	Prn   string `json:"prn,omitempty"`   // email for which the application is requesting delegated access (Optional).
 	Exp   int64  `json:"exp"`
 	Iat   int64  `json:"iat"`
+	Typ   string `json:"typ,omitempty"`
+
+	// See http://tools.ietf.org/html/draft-jones-json-web-token-10#section-4.3
+	// This array is marshalled using custom code (see (c *ClaimSet) encode()).
+	PrivateClaims map[string]interface{} `json:"-"`
 
 	exp time.Time
 	iat time.Time
@@ -119,6 +124,11 @@ func (c *ClaimSet) setTimes(t time.Time) {
 	c.exp = c.iat.Add(time.Hour)
 }
 
+var (
+	jsonStart = []byte{'{'}
+	jsonEnd   = []byte{'}'}
+)
+
 // encode returns the Base64url encoded form of the Signature.
 func (c *ClaimSet) encode() string {
 	if c.exp.IsZero() || c.iat.IsZero() {
@@ -134,6 +144,27 @@ func (c *ClaimSet) encode() string {
 	if err != nil {
 		panic(err)
 	}
+
+	if len(c.PrivateClaims) == 0 {
+		return base64Encode(b)
+	}
+
+	// Marshal private claim set and then append it to b.
+	prv, err := json.Marshal(c.PrivateClaims)
+	if err != nil {
+		panic(fmt.Errorf("Invalid map of private claims %v", c.PrivateClaims))
+	}
+
+	// Concatenate public and private claim JSON objects.
+	if !bytes.HasSuffix(b, jsonEnd) {
+		panic(fmt.Errorf("Invalid JSON %s", b))
+	}
+	if !bytes.HasPrefix(prv, jsonStart) {
+		panic(fmt.Errorf("Invalid JSON %s", prv))
+	}
+	b[len(b)-1] = ','         // Replace closing curly brace with a comma.
+	b = append(b, prv[1:]...) // Append private claims.
+
 	return base64Encode(b)
 }
 

@@ -135,10 +135,115 @@ func TestClaimSetEncode(t *testing.T) {
 		iat:   time.Unix(iat, 0),
 	}
 	enc := c.encode()
+	re, err := base64Decode(enc)
+	if err != nil {
+		t.Fatalf("error decoding encoded claim set: %v", err)
+	}
+
+	wa, err := base64Decode(claimSetEnc)
+	if err != nil {
+		t.Fatalf("error decoding encoded expected claim set: %v", err)
+	}
+
 	if enc != claimSetEnc {
 		t.Error("TestClaimSetEncode: enc != claimSetEnc")
-		t.Errorf("          enc = %s", enc)
-		t.Errorf("  claimSetEnc = %s", claimSetEnc)
+		t.Errorf("          enc = %s", string(re))
+		t.Errorf("  claimSetEnc = %s", string(wa))
+	}
+}
+
+// Test that claim sets with private claim names are encoded correctly.
+func TestClaimSetWithPrivateNameEncode(t *testing.T) {
+	iatT := time.Unix(iat, 0)
+	expT := time.Unix(exp, 0)
+
+	i, err := json.Marshal(iatT.Unix())
+	if err != nil {
+		t.Fatalf("error marshaling iatT value of %v: %v", iatT.Unix(), err)
+	}
+	iatStr := string(i)
+	e, err := json.Marshal(expT.Unix())
+	if err != nil {
+		t.Fatalf("error marshaling expT value of %v: %v", expT.Unix(), err)
+	}
+
+	expStr := string(e)
+
+	testCases := []struct {
+		desc  string
+		input map[string]interface{}
+		want  string
+	}{
+		// Test a simple int field.
+		{
+			"single simple field",
+			map[string]interface{}{"amount": 22},
+			`{` +
+				`"iss":"` + iss + `",` +
+				`"scope":"` + scope + `",` +
+				`"aud":"` + stdAud + `",` +
+				`"exp":` + expStr + `,` +
+				`"iat":` + iatStr + `,` +
+				`"amount":22` +
+				`}`,
+		},
+		{
+			"multiple simple fields",
+			map[string]interface{}{"tracking_code": "axZf", "amount": 22},
+			`{` +
+				`"iss":"` + iss + `",` +
+				`"scope":"` + scope + `",` +
+				`"aud":"` + stdAud + `",` +
+				`"exp":` + expStr + `,` +
+				`"iat":` + iatStr + `,` +
+				`"amount":22,` +
+				`"tracking_code":"axZf"` +
+				`}`,
+		},
+		{
+			"nested struct fields",
+			map[string]interface{}{
+				"tracking_code": "axZf",
+				"purchase": struct {
+					Description string `json:"desc"`
+					Quantity    int32  `json:"q"`
+					Time        int64  `json:"t"`
+				}{
+					"toaster",
+					5,
+					iat,
+				},
+			},
+			`{` +
+				`"iss":"` + iss + `",` +
+				`"scope":"` + scope + `",` +
+				`"aud":"` + stdAud + `",` +
+				`"exp":` + expStr + `,` +
+				`"iat":` + iatStr + `,` +
+				`"purchase":{"desc":"toaster","q":5,"t":` + iatStr + `},` +
+				`"tracking_code":"axZf"` +
+				`}`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		c := &ClaimSet{
+			Iss:           iss,
+			Scope:         scope,
+			Aud:           stdAud,
+			iat:           iatT,
+			exp:           expT,
+			PrivateClaims: testCase.input,
+		}
+		cJSON, err := base64Decode(c.encode())
+		if err != nil {
+			t.Fatalf("error decoding claim set: %v", err)
+		}
+		if string(cJSON) != testCase.want {
+			t.Errorf("TestClaimSetWithPrivateNameEncode: enc != want in case %s", testCase.desc)
+			t.Errorf("    enc = %s", cJSON)
+			t.Errorf("    want = %s", testCase.want)
+		}
 	}
 }
 
