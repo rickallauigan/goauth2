@@ -248,9 +248,28 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 
-	// Make the HTTP request.
+	// To set the Authorization header, we must make a copy of the Request
+	// so that we don't modify the Request we were given.
+	// This is required by the specification of http.RoundTripper.
+	req = cloneRequest(req)
 	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
+
+	// Make the HTTP request.
 	return t.transport().RoundTrip(req)
+}
+
+// cloneRequest returns a clone of the provided *http.Request.
+// The clone is a shallow copy of the struct and its Header map.
+func cloneRequest(r *http.Request) *http.Request {
+	// shallow copy of the struct
+	r2 := new(http.Request)
+	*r2 = *r
+	// deep copy of the Header
+	r2.Header = make(http.Header)
+	for k, s := range r.Header {
+		r2.Header[k] = s
+	}
+	return r2
 }
 
 // Refresh renews the Transport's AccessToken using its RefreshToken.
