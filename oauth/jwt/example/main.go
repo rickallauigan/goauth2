@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // This program makes a read only call to the Google Cloud Storage API,
-// authenticated with OAuth2. A list of example APIs can be found at 
+// authenticated with OAuth2. A list of example APIs can be found at
 // https://code.google.com/oauthplayground/
 package main
 
@@ -52,6 +52,7 @@ func main() {
 	var config struct {
 		Web struct {
 			ClientEmail string `json:"client_email"`
+			ClientID    string `json:"client_id"`
 			TokenURI    string `json:"token_uri"`
 		}
 	}
@@ -60,8 +61,8 @@ func main() {
 		log.Fatal("error unmarshalling secerets:", err)
 	}
 
-	// Get the project ID from the project email.
-	id := strings.SplitN(config.Web.ClientEmail, "@", 2)[0]
+	// Get the project ID from the client ID.
+	projectID := strings.SplitN(config.Web.ClientID, "-", 2)[0]
 
 	// Read the pem file bytes for the private key.
 	keyBytes, err := ioutil.ReadFile(*pemFile)
@@ -70,15 +71,8 @@ func main() {
 	}
 
 	// Craft the ClaimSet and JWT token.
-	claimSet := &jwt.ClaimSet{
-		Iss:   config.Web.ClientEmail,
-		Scope: scope,
-		Aud:   config.Web.TokenURI,
-	}
-	t := &jwt.Token{
-		ClaimSet: claimSet,
-		Key:      keyBytes,
-	}
+	t := jwt.NewToken(config.Web.ClientEmail, scope, keyBytes)
+	t.ClaimSet.Aud = config.Web.TokenURI
 
 	// We need to provide a client.
 	c := &http.Client{}
@@ -102,7 +96,7 @@ func main() {
 	}
 	req.Header.Set("Authorization", "OAuth "+o.AccessToken)
 	req.Header.Set("x-goog-api-version", "2")
-	req.Header.Set("x-goog-project-id", id)
+	req.Header.Set("x-goog-project-id", projectID)
 
 	// Make the request.
 	r, err := c.Do(req)

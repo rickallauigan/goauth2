@@ -192,7 +192,7 @@ func (h *Header) encode() string {
 //
 // When obtaining a key from the Google API console it will be downloaded in a
 // PKCS12 encoding.  To use this key you will need to convert it to a PEM file.
-// This can be achieved on a with openssl.
+// This can be achieved with openssl.
 //
 //   $ openssl pkcs12 -in <key.p12> -nocerts -passin pass:notasecret -nodes -out <key.pem>
 //
