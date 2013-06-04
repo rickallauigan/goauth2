@@ -220,10 +220,10 @@ func (t *Transport) Exchange(code string) (*Token, error) {
 // If the Token is invalid callers should expect HTTP-level errors,
 // as indicated by the Response's StatusCode.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if t.Config == nil {
-		return nil, OAuthError{"RoundTrip", "no Config supplied"}
-	}
 	if t.Token == nil {
+		if t.Config == nil {
+			return nil, OAuthError{"RoundTrip", "no Config supplied"}
+		}
 		if t.TokenCache == nil {
 			return nil, OAuthError{"RoundTrip", "no Token supplied"}
 		}
@@ -267,10 +267,14 @@ func cloneRequest(r *http.Request) *http.Request {
 
 // Refresh renews the Transport's AccessToken using its RefreshToken.
 func (t *Transport) Refresh() error {
+	if t.Token == nil {
+		return OAuthError{"Refresh", "no existing Token"}
+	}
+	if t.RefreshToken == "" {
+		return OAuthError{"Refresh", "Token expired; no Refresh Token"}
+	}
 	if t.Config == nil {
 		return OAuthError{"Refresh", "no Config supplied"}
-	} else if t.Token == nil {
-		return OAuthError{"Refresh", "no existing Token"}
 	}
 
 	err := t.updateToken(t.Token, url.Values{
