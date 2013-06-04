@@ -42,6 +42,7 @@ func main() {
 	config := &oauth.Config{
 		ClientId:     *clientId,
 		ClientSecret: *clientSecret,
+		RedirectURL:  "oob",
 		Scope:        *apiURL,
 		AuthURL:      "https://accounts.google.com/o/oauth2/auth",
 		TokenURL:     "https://accounts.google.com/o/oauth2/token",

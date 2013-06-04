@@ -95,7 +95,7 @@ type Config struct {
 	Scope        string
 	AuthURL      string
 	TokenURL     string
-	RedirectURL  string // Defaults to out-of-band mode if empty.
+	RedirectURL  string
 	TokenCache   Cache
 	AccessType   string // Optional, "online" (default) or "offline", no refresh token if "online"
 
@@ -107,13 +107,6 @@ type Config struct {
 	// If set to "force" the user will always be prompted, and the
 	// code can be exchanged for a refresh token.
 	ApprovalPrompt string
-}
-
-func (c *Config) redirectURL() string {
-	if c.RedirectURL != "" {
-		return c.RedirectURL
-	}
-	return "oob"
 }
 
 // Token contains an end-user's tokens.
@@ -173,7 +166,7 @@ func (c *Config) AuthCodeURL(state string) string {
 	q := url.Values{
 		"response_type":   {"code"},
 		"client_id":       {c.ClientId},
-		"redirect_uri":    {c.redirectURL()},
+		"redirect_uri":    {c.RedirectURL},
 		"scope":           {c.Scope},
 		"state":           {state},
 		"access_type":     {c.AccessType},
@@ -204,7 +197,7 @@ func (t *Transport) Exchange(code string) (*Token, error) {
 	}
 	err := t.updateToken(tok, url.Values{
 		"grant_type":   {"authorization_code"},
-		"redirect_uri": {t.redirectURL()},
+		"redirect_uri": {t.RedirectURL},
 		"scope":        {t.Scope},
 		"code":         {code},
 	})
