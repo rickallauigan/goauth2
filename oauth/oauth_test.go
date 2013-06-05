@@ -20,7 +20,7 @@ var requests = []struct {
 }{
 	{
 		path:        "/token",
-		query:       "grant_type=authorization_code&code=c0d3&redirect_uri=oob&client_id=cl13nt1d",
+		query:       "grant_type=authorization_code&code=c0d3&client_id=cl13nt1d",
 		contenttype: "application/json",
 		body: `
 			{
