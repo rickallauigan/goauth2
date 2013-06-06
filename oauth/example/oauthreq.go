@@ -19,8 +19,11 @@ import (
 var (
 	clientId     = flag.String("id", "", "Client ID")
 	clientSecret = flag.String("secret", "", "Client Secret")
-	apiURL       = flag.String("api", "https://www.googleapis.com/auth/userinfo.profile", "API URL")
-	requestURL   = flag.String("request", "https://www.googleapis.com/oauth2/v1/userinfo", "API request")
+	scope        = flag.String("scope", "https://www.googleapis.com/auth/userinfo.profile", "OAuth scope")
+	redirectURL  = flag.String("redirect_url", "oob", "Redirect URL")
+	authURL      = flag.String("auth_url", "https://accounts.google.com/o/oauth2/auth", "Authentication URL")
+	tokenURL     = flag.String("token_url", "https://accounts.google.com/o/oauth2/token", "Token URL")
+	requestURL   = flag.String("request_url", "https://www.googleapis.com/oauth2/v1/userinfo", "API request")
 	code         = flag.String("code", "", "Authorization Code")
 	cachefile    = flag.String("cache", "cache.json", "Token cache file")
 )
@@ -42,10 +45,10 @@ func main() {
 	config := &oauth.Config{
 		ClientId:     *clientId,
 		ClientSecret: *clientSecret,
-		RedirectURL:  "oob",
-		Scope:        *apiURL,
-		AuthURL:      "https://accounts.google.com/o/oauth2/auth",
-		TokenURL:     "https://accounts.google.com/o/oauth2/token",
+		RedirectURL:  *redirectURL,
+		Scope:        *scope,
+		AuthURL:      *authURL,
+		TokenURL:     *tokenURL,
 		TokenCache:   oauth.CacheFile(*cachefile),
 	}
 
