@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -148,5 +151,31 @@ func checkBody(t *testing.T, r *http.Response, body string) {
 	}
 	if g, w := string(b), body; g != w {
 		t.Errorf("request body mismatch: got %q, want %q", g, w)
+	}
+}
+
+func TestCachePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Windows doesn't support file mode bits.
+		return
+	}
+
+	td, err := ioutil.TempDir("", "oauth-test")
+	if err != nil {
+		t.Fatalf("ioutil.TempDir: %v", err)
+	}
+	defer os.RemoveAll(td)
+	tempFile := filepath.Join(td, "cache-file")
+
+	cf := CacheFile(tempFile)
+	if err := cf.PutToken(new(Token)); err != nil {
+		t.Fatalf("PutToken: %v", err)
+	}
+	fi, err := os.Stat(tempFile)
+	if err != nil {
+		t.Fatalf("os.Stat: %v", err)
+	}
+	if fi.Mode()&0077 != 0 {
+		t.Errorf("Created cache file has mode %#o, want non-accessible to group+other", fi.Mode())
 	}
 }
