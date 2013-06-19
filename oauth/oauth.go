@@ -90,14 +90,33 @@ func (f CacheFile) PutToken(tok *Token) error {
 
 // Config is the configuration of an OAuth consumer.
 type Config struct {
-	ClientId     string
+	// ClientId is the OAuth client identifier used when communicating with
+	// the configured OAuth provider.
+	ClientId string
+
+	// ClientSecret is the OAuth client secret used when communicating with
+	// the configured OAuth provider.
 	ClientSecret string
-	Scope        string
-	AuthURL      string
-	TokenURL     string
-	RedirectURL  string
-	TokenCache   Cache
-	AccessType   string // Optional, "online" (default) or "offline", no refresh token if "online"
+
+	// Scope identifies the level of access being requested. Multiple scope
+	// values should be provided as a space-delimited string.
+	Scope string
+
+	// AuthURL is the URL the user will be directed to in order to grant
+	// access.
+	AuthURL string
+
+	// TokenURL is the URL used to retrieve OAuth tokens.
+	TokenURL string
+
+	// RedirectURL is the URL to which the user will be returned after
+	// granting (or denying) access.
+	RedirectURL string
+
+	// TokenCache allows tokens to be cached for subsequent requests.
+	TokenCache Cache
+
+	AccessType string // Optional, "online" (default) or "offline", no refresh token if "online"
 
 	// ApprovalPrompt indicates whether the user should be
 	// re-prompted for consent. If set to "auto" (default) the
