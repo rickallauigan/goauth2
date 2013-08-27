@@ -133,7 +133,8 @@ type Config struct {
 type Token struct {
 	AccessToken  string
 	RefreshToken string
-	Expiry       time.Time // If zero the token has no (known) expiry time.
+	Expiry       time.Time         // If zero the token has no (known) expiry time.
+	Extra        map[string]string // May be nil.
 }
 
 func (t *Token) Expired() bool {
@@ -324,6 +325,7 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 		Access    string        `json:"access_token"`
 		Refresh   string        `json:"refresh_token"`
 		ExpiresIn time.Duration `json:"expires_in"`
+		Id        string        `json:"id_token"`
 	}
 
 	content, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -341,6 +343,7 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 		b.Access = vals.Get("access_token")
 		b.Refresh = vals.Get("refresh_token")
 		b.ExpiresIn, _ = time.ParseDuration(vals.Get("expires_in") + "s")
+		b.Id = vals.Get("id_token")
 	default:
 		if err = json.NewDecoder(r.Body).Decode(&b); err != nil {
 			return err
@@ -358,6 +361,12 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 		tok.Expiry = time.Time{}
 	} else {
 		tok.Expiry = time.Now().Add(b.ExpiresIn)
+	}
+	if b.Id != "" {
+		if tok.Extra == nil {
+			tok.Extra = make(map[string]string)
+		}
+		tok.Extra["id_token"] = b.Id
 	}
 	return nil
 }

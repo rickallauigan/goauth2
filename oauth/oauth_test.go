@@ -29,6 +29,7 @@ var requests = []struct {
 			{
 				"access_token":"token1",
 				"refresh_token":"refreshtoken1",
+				"id_token":"idtoken1",
 				"expires_in":3600
 			}
 		`,
@@ -42,6 +43,7 @@ var requests = []struct {
 			{
 				"access_token":"token2",
 				"refresh_token":"refreshtoken2",
+				"id_token":"idtoken2",
 				"expires_in":3600
 			}
 		`,
@@ -51,7 +53,7 @@ var requests = []struct {
 		path:        "/token",
 		query:       "grant_type=refresh_token&refresh_token=refreshtoken2&client_id=cl13nt1d",
 		contenttype: "application/x-www-form-urlencoded",
-		body:        "access_token=token3&refresh_token=refreshtoken3&expires_in=3600",
+		body:        "access_token=token3&refresh_token=refreshtoken3&id_token=idtoken3&expires_in=3600",
 	},
 	{path: "/secure", auth: "Bearer token3", body: "third payload"},
 }
@@ -103,7 +105,7 @@ func TestOAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Exchange: %v", err)
 	}
-	checkToken(t, transport.Token, "token1", "refreshtoken1")
+	checkToken(t, transport.Token, "token1", "refreshtoken1", "idtoken1")
 
 	c := transport.Client()
 	resp, err := c.Get(server.URL + "/secure")
@@ -119,7 +121,7 @@ func TestOAuth(t *testing.T) {
 		t.Fatalf("Get: %v", err)
 	}
 	checkBody(t, resp, "second payload")
-	checkToken(t, transport.Token, "token2", "refreshtoken2")
+	checkToken(t, transport.Token, "token2", "refreshtoken2", "idtoken2")
 
 	// refresh one more time, but get URL-encoded token instead of JSON
 	transport.Expiry = time.Now()
@@ -128,15 +130,18 @@ func TestOAuth(t *testing.T) {
 		t.Fatalf("Get: %v", err)
 	}
 	checkBody(t, resp, "third payload")
-	checkToken(t, transport.Token, "token3", "refreshtoken3")
+	checkToken(t, transport.Token, "token3", "refreshtoken3", "idtoken3")
 }
 
-func checkToken(t *testing.T, tok *Token, access, refresh string) {
+func checkToken(t *testing.T, tok *Token, access, refresh, id string) {
 	if g, w := tok.AccessToken, access; g != w {
 		t.Errorf("AccessToken = %q, want %q", g, w)
 	}
 	if g, w := tok.RefreshToken, refresh; g != w {
 		t.Errorf("RefreshToken = %q, want %q", g, w)
+	}
+	if g, w := tok.Extra["id_token"], id; g != w {
+		t.Errorf("Extra['id_token'] = %q, want %q", g, w)
 	}
 	exp := tok.Expiry.Sub(time.Now())
 	if (time.Hour-time.Second) > exp || exp > time.Hour {
