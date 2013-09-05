@@ -71,9 +71,9 @@ func (f CacheFile) Token() (*Token, error) {
 	if err != nil {
 		return nil, OAuthError{"CacheFile.Token", err.Error()}
 	}
+	defer file.Close()
 	tok := &Token{}
-	dec := json.NewDecoder(file)
-	if err = dec.Decode(tok); err != nil {
+	if err := json.NewDecoder(file).Decode(tok); err != nil {
 		return nil, OAuthError{"CacheFile.Token", err.Error()}
 	}
 	return tok, nil
@@ -84,8 +84,14 @@ func (f CacheFile) PutToken(tok *Token) error {
 	if err != nil {
 		return OAuthError{"CacheFile.PutToken", err.Error()}
 	}
-	enc := json.NewEncoder(file)
-	return enc.Encode(tok)
+	if err := json.NewEncoder(file).Encode(tok); err != nil {
+		file.Close()
+		return OAuthError{"CacheFile.PutToken", err.Error()}
+	}
+	if err := file.Close(); err != nil {
+		return OAuthError{"CacheFile.PutToken", err.Error()}
+	}
+	return nil
 }
 
 // Config is the configuration of an OAuth consumer.
