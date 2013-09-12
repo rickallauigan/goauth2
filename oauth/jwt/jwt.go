@@ -101,6 +101,7 @@ type ClaimSet struct {
 	Exp   int64  `json:"exp"`
 	Iat   int64  `json:"iat"`
 	Typ   string `json:"typ,omitempty"`
+	Sub   string `json:"sub,omitempty"` // Add support for googleapi delegation support
 
 	// See http://tools.ietf.org/html/draft-jones-json-web-token-10#section-4.3
 	// This array is marshalled using custom code (see (c *ClaimSet) encode()).
