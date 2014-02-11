@@ -354,6 +354,7 @@ func (t *Token) parsePrivateKey() error {
 // expires call this method again to get a fresh one.
 func (t *Token) Assert(c *http.Client) (*oauth.Token, error) {
 	var o *oauth.Token
+	t.ClaimSet.setTimes(time.Now())
 	u, v, err := t.buildRequest()
 	if err != nil {
 		return o, err
