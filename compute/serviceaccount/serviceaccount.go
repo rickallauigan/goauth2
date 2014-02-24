@@ -32,7 +32,7 @@ import (
 
 const (
 	metadataServer     = "metadata"
-	serviceAccountPath = "/computeMetadata/v1beta1/instance/service-accounts"
+	serviceAccountPath = "/computeMetadata/v1/instance/service-accounts"
 )
 
 // Options configures a service account Client.
@@ -90,12 +90,19 @@ type transport struct {
 // Refresh renews the transport's AccessToken.
 // t.mu sould be held when this is called.
 func (t *transport) refresh() error {
+	// https://developers.google.com/compute/docs/metadata
+	// v1 requires "X-Google-Metadata-Request: True" header.
 	tokenURL := &url.URL{
 		Scheme: "http",
 		Host:   metadataServer,
 		Path:   path.Join(serviceAccountPath, t.Account, "token"),
 	}
-	resp, err := http.Get(tokenURL.String())
+	req, err := http.NewRequest("GET", tokenURL.String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("X-Google-Metadata-Request", "True")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
