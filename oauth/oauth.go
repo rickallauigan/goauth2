@@ -44,6 +44,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -319,7 +320,14 @@ func (t *Transport) Refresh() error {
 func (t *Transport) updateToken(tok *Token, v url.Values) error {
 	v.Set("client_id", t.ClientId)
 	v.Set("client_secret", t.ClientSecret)
-	r, err := (&http.Client{Transport: t.transport()}).PostForm(t.TokenURL, v)
+	client := &http.Client{Transport: t.transport()}
+	req, err := http.NewRequest("POST", t.TokenURL, strings.NewReader(v.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(t.ClientId, t.ClientSecret)
+	r, err := client.Do(req)
 	if err != nil {
 		return err
 	}
