@@ -15,7 +15,7 @@ import (
 	"code.google.com/p/goauth2/oauth"
 )
 
-// cache implementss TokenCache using memcache to store AccessToken
+// cache implements TokenCache using memcache to store AccessToken
 // for the application service account.
 type cache struct {
 	Context appengine.Context
@@ -23,20 +23,21 @@ type cache struct {
 }
 
 func (m cache) Token() (*oauth.Token, error) {
-	item, err := memcache.Get(m.Context, m.Key)
+	tok := new(oauth.Token)
+	_, err := memcache.Gob.Get(m.Context, m.Key, tok)
 	if err != nil {
 		return nil, err
 	}
-	return &oauth.Token{
-		AccessToken: string(item.Value),
-		Expiry:      time.Now().Add(item.Expiration),
-	}, nil
+	return tok, nil
 }
 
 func (m cache) PutToken(tok *oauth.Token) error {
-	return memcache.Set(m.Context, &memcache.Item{
-		Key:        m.Key,
-		Value:      []byte(tok.AccessToken),
+	return memcache.Gob.Set(m.Context, &memcache.Item{
+		Key: m.Key,
+		Object: oauth.Token{
+			AccessToken: tok.AccessToken,
+			Expiry:      tok.Expiry,
+		},
 		Expiration: tok.Expiry.Sub(time.Now()),
 	})
 }
