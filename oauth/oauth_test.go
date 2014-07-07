@@ -155,7 +155,7 @@ func checkToken(t *testing.T, tok *Token, access, refresh, id string) {
 func checkBody(t *testing.T, r *http.Response, body string) {
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		t.Error("reading reponse body: %v, want %q", err, body)
+		t.Errorf("reading reponse body: %v, want %q", err, body)
 	}
 	if g, w := string(b), body; g != w {
 		t.Errorf("request body mismatch: got %q, want %q", g, w)
