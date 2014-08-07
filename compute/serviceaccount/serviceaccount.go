@@ -90,8 +90,8 @@ type transport struct {
 // Refresh renews the transport's AccessToken.
 // t.mu sould be held when this is called.
 func (t *transport) refresh() error {
-	// https://developers.google.com/compute/docs/metadata
-	// v1 requires "X-Google-Metadata-Request: True" header.
+	// https://developers.google.com/compute/docs/metadata#transitioning
+	// v1 requires "Metadata-Flavor: Google" header.
 	tokenURL := &url.URL{
 		Scheme: "http",
 		Host:   metadataServer,
@@ -101,7 +101,7 @@ func (t *transport) refresh() error {
 	if err != nil {
 		return err
 	}
-	req.Header.Add("X-Google-Metadata-Request", "True")
+	req.Header.Add("Metadata-Flavor", "Google")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
