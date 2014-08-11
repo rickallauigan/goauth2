@@ -39,6 +39,9 @@ package oauth
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"mime"
 	"net/http"
@@ -354,13 +357,14 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 		Id        string        `json:"id_token"`
 	}
 
+	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+
 	content, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	switch content {
 	case "application/x-www-form-urlencoded", "text/plain":
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return err
-		}
 		vals, err := url.ParseQuery(string(body))
 		if err != nil {
 			return err
@@ -371,12 +375,15 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 		b.ExpiresIn, _ = time.ParseDuration(vals.Get("expires_in") + "s")
 		b.Id = vals.Get("id_token")
 	default:
-		if err = json.NewDecoder(r.Body).Decode(&b); err != nil {
-			return err
+		if err = json.Unmarshal(body, &b); err != nil {
+			return fmt.Errorf("got bad response from server: %q", body)
 		}
 		// The JSON parser treats the unitless ExpiresIn like 'ns' instead of 's' as above,
 		// so compensate here.
 		b.ExpiresIn *= time.Second
+	}
+	if b.Access == "" {
+		return errors.New("received empty access token from authorization server")
 	}
 	tok.AccessToken = b.Access
 	// Don't overwrite `RefreshToken` with an empty value
