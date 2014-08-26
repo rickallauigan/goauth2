@@ -217,3 +217,20 @@ func TestCachePermissions(t *testing.T) {
 		t.Errorf("Created cache file has mode %#o, want non-accessible to group+other", fi.Mode())
 	}
 }
+
+func TestTokenExpired(t *testing.T) {
+	tests := []struct {
+		token   Token
+		expired bool
+	}{
+		{Token{AccessToken: "foo"}, false},
+		{Token{AccessToken: ""}, true},
+		{Token{AccessToken: "foo", Expiry: time.Now().Add(-1 * time.Hour)}, true},
+		{Token{AccessToken: "foo", Expiry: time.Now().Add(1 * time.Hour)}, false},
+	}
+	for _, tt := range tests {
+		if got := tt.token.Expired(); got != tt.expired {
+			t.Errorf("token %+v Expired = %v; want %v", tt.token, got, !got)
+		}
+	}
+}
