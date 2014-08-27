@@ -221,11 +221,11 @@ func (c *Config) AuthCodeURL(state string) string {
 	q := url.Values{
 		"response_type":   {"code"},
 		"client_id":       {c.ClientId},
-		"redirect_uri":    {c.RedirectURL},
-		"scope":           {c.Scope},
-		"state":           {state},
-		"access_type":     {c.AccessType},
-		"approval_prompt": {c.ApprovalPrompt},
+		"state":           condVal(state),
+		"scope":           condVal(c.Scope),
+		"redirect_uri":    condVal(c.RedirectURL),
+		"access_type":     condVal(c.AccessType),
+		"approval_prompt": condVal(c.ApprovalPrompt),
 	}.Encode()
 	if url_.RawQuery == "" {
 		url_.RawQuery = q
@@ -233,6 +233,13 @@ func (c *Config) AuthCodeURL(state string) string {
 		url_.RawQuery += "&" + q
 	}
 	return url_.String()
+}
+
+func condVal(v string) []string {
+	if v == "" {
+		return nil
+	}
+	return []string{v}
 }
 
 // Exchange takes a code and gets access Token from the remote server.
