@@ -385,8 +385,9 @@ func (t *Transport) AuthenticateClient() error {
 // - Dropbox accepts either it in URL param or Auth header, but not both.
 // - Google only accepts URL param (not spec compliant?), not Auth header
 func providerAuthHeaderWorks(tokenURL string) bool {
-	if strings.HasPrefix(tokenURL, "https://accounts.google.com/") {
-		// Google fails to implement the OAuth2 spec fully?
+	if strings.HasPrefix(tokenURL, "https://accounts.google.com/") ||
+		strings.HasPrefix(tokenURL, "https://github.com/") {
+		// Google and GitHub fail to implement the OAuth2 spec fully?
 		return false
 	}
 
