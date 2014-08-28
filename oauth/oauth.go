@@ -386,8 +386,10 @@ func (t *Transport) AuthenticateClient() error {
 // - Google only accepts URL param (not spec compliant?), not Auth header
 func providerAuthHeaderWorks(tokenURL string) bool {
 	if strings.HasPrefix(tokenURL, "https://accounts.google.com/") ||
-		strings.HasPrefix(tokenURL, "https://github.com/") {
-		// Google and GitHub fail to implement the OAuth2 spec fully?
+		strings.HasPrefix(tokenURL, "https://github.com/") ||
+		strings.HasPrefix(tokenURL, "https://api.instagram.com/") ||
+		strings.HasPrefix(tokenURL, "https://www.douban.com/") {
+		// Some sites fail to implement the OAuth2 spec fully.
 		return false
 	}
 
